@@ -1,0 +1,50 @@
+version: "3.8"
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rate-limiter:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "50051:50051"
+      - "9090:9090"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - GRPC_PORT=50051
+      - METRICS_PORT=9090
+      - RATE_LIMIT=100
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - GRPC_ADDR=rate-limiter:50051
+      - HTTP_PORT=8081
+      - UPSTREAM_URL=http://httpbin.org
+    depends_on:
+      - rate-limiter
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - rate-limiter

@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package ratelimiter.v1;
+
+option go_package = "github.com/suryaparua-official/Distributed-Rate-Limiter-API-Gateway/proto/gen;ratelimiterpb";
+
+// RateLimiterService — gRPC service for distributed rate limiting
+service RateLimiterService {
+  // CheckLimit — single request check (hot path, must be <10ms)
+  rpc CheckLimit(CheckLimitRequest) returns (CheckLimitResponse);
+
+  // GetStats — current usage stats for a key (monitoring/dashboard)
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+message CheckLimitRequest {
+  string key        = 1; // e.g. "user:123", "ip:1.2.3.4", "api-key:xyz"
+  string limit_type = 2; // "user", "ip", "global"
+  double cost       = 3; // token cost (default 1.0)
+}
+
+message CheckLimitResponse {
+  bool   allowed       = 1; // true = proceed, false = rate limited
+  int32  current_count = 2; // requests in current window
+  int32  limit         = 3; // max allowed
+  int64  reset_after_ms = 4; // milliseconds until window resets
+  string reason        = 5; // denial reason (e.g. "rate_limit_exceeded")
+}
+
+message GetStatsRequest {
+  string key = 1;
+}
+
+message GetStatsResponse {
+  string key           = 1;
+  int32  current_count = 2;
+  int32  limit         = 3;
+  double usage_percent = 4;
+}
