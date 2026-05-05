@@ -223,6 +223,36 @@ avg latency: 421ms
 p(95): 956ms
 ```
 
+## Trade-offs & Design Decisions
+
+### Token Bucket vs Sliding Window
+
+|              | Token Bucket    | Sliding Window  |
+| ------------ | --------------- | --------------- |
+| Latency      | 65ns            | 65µs            |
+| Memory       | O(1)            | O(n) requests   |
+| Accuracy     | Approximate     | Exact           |
+| Burst        | Allowed         | Controlled      |
+| **Use when** | High throughput | Strict accuracy |
+
+### Redis Latency vs Accuracy
+
+- **Local only** → 65ns but breaks in multi-node
+- **Redis** → 130µs but globally consistent
+- **Trade-off accepted:** 2000x slower, but correctness guaranteed
+
+### Consistency vs Performance
+
+- **Fail-open** → Service stays up, may allow extra requests during Redis outage
+- **Fail-closed** → Strict limiting, but service degrades when Redis is down
+- **Decision:** Fail-open — availability > strict limiting for most APIs
+
+### Lua Script vs Redis Transactions
+
+- **MULTI/EXEC transactions** → 2 round trips, can fail
+- **Lua scripts** → 1 round trip, atomic, cannot be interrupted
+- **Decision:** Lua scripts for atomicity and performance
+
 ## Author
 
 **Surya** — Built as a production-grade distributed systems project.
