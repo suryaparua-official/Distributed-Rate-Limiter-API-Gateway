@@ -7,10 +7,10 @@ import (
 )
 
 func main() {
-	gw, err := gateway.NewGateway(
-		"localhost:50051",        // gRPC rate limiter
-		"http://httpbin.org",     // upstream (test server)
-	)
+gw, err := gateway.NewGateway(
+    "localhost:50051",
+    "http://localhost:9999", // local mock — no network latency
+)
 	if err != nil {
 		log.Fatalf("failed to create gateway: %v", err)
 	}

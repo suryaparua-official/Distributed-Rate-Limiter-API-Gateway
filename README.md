@@ -208,11 +208,11 @@ Scenarios:
   spike:       up to 200 VUs for 40s
 
 Results:
-  Total requests:  ~7946
-  Throughput:      ~86 req/s
-  avg latency:     421ms (httpbin.org upstream)
-  p(95) latency:   956ms
-  Rate limited:    0% (each VU = separate user key)
+  Total requests:  ~38327
+  Throughput:      ~510 req/s
+  avg latency:     4.9ms
+  p(95) latency:   9.7ms ← within <10ms SLA
+  max latency: 452ms (spike peak)
 ```
 
 ## Author
