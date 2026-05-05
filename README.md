@@ -215,6 +215,14 @@ Results:
   max latency: 452ms (spike peak)
 ```
 
+### With External Upstream (httpbin.org)
+
+```
+Throughput: 86req/s
+avg latency: 421ms
+p(95): 956ms
+```
+
 ## Author
 
 **Surya** — Built as a production-grade distributed systems project.
