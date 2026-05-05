@@ -15,7 +15,7 @@ type RedisLimiter struct {
 	limit     int
 	window    time.Duration
 	luaScript *redis.Script
-	cb        *CircuitBreaker // circuit breaker for Redis calls
+	cb        *CircuitBreaker
 }
 
 const slidingWindowLua = `
@@ -55,8 +55,8 @@ func NewRedisLimiter(addr string, limit int, window time.Duration) *RedisLimiter
 		window:    window,
 		luaScript: redis.NewScript(slidingWindowLua),
 		cb: NewCircuitBreaker(
-			5,               // open after 5 failures
-			30*time.Second,  // retry after 30 seconds
+			5,
+			30*time.Second,
 		),
 	}
 }
@@ -95,10 +95,8 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string) (bool, int, error
 
 	if err != nil {
 		if err == ErrCircuitOpen {
-			// Circuit open — fail open (allow request, don't hammer Redis)
 			return true, 0, ErrCircuitOpen
 		}
-		// Redis error — fail open
 		return true, 0, fmt.Errorf("redis error: %w", err)
 	}
 
@@ -107,4 +105,26 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string) (bool, int, error
 
 func (rl *RedisLimiter) Close() error {
 	return rl.client.Close()
+}
+
+// GetCount returns current request count without incrementing.
+func (rl *RedisLimiter) GetCount(ctx context.Context, redisKey string) (int, error) {
+	now := time.Now().UnixNano()
+	windowStart := now - rl.window.Nanoseconds()
+
+	pipe := rl.client.Pipeline()
+	pipe.ZRemRangeByScore(ctx, redisKey, "-inf", fmt.Sprintf("%d", windowStart))
+	cardCmd := pipe.ZCard(ctx, redisKey)
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(cardCmd.Val()), nil
+}
+
+// GetCircuitState returns current circuit breaker state
+func (rl *RedisLimiter) GetCircuitState() (State, int, time.Time) {
+	return rl.cb.Stats()
 }

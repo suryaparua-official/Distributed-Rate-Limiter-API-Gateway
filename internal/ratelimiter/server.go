@@ -2,6 +2,7 @@ package ratelimiter
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/suryaparua-official/Distributed-Rate-Limiter-API-Gateway/internal/limiter"
@@ -41,23 +42,24 @@ func (s *Server) CheckLimit(ctx context.Context, req *pb.CheckLimitRequest) (*pb
 	compositeKey := req.LimitType + ":" + req.Key
 	allowed, count, err := s.redisLimiter.Allow(ctx, compositeKey)
 
-	if err != nil {
-		// Record error type in metrics
-		if err == limiter.ErrCircuitOpen {
-			metrics.RedisErrors.WithLabelValues("circuit_open").Inc()
-			metrics.CircuitBreakerState.Set(1) // open
-		} else {
-			metrics.RedisErrors.WithLabelValues("connection").Inc()
-		}
+if err != nil {
+    if err == limiter.ErrCircuitOpen {
+        metrics.RedisErrors.WithLabelValues("circuit_open").Inc()
+        metrics.CircuitBreakerState.Set(1) // open
+    } else {
+        metrics.RedisErrors.WithLabelValues("connection").Inc()
+    }
+    return &pb.CheckLimitResponse{
+        Allowed:      true,
+        CurrentCount: 0,
+        Limit:        int32(s.limit),
+        Reason:       "redis_unavailable_fail_open",
+    }, nil
+}
 
-		// Fail open
-		return &pb.CheckLimitResponse{
-			Allowed:      true,
-			CurrentCount: 0,
-			Limit:        int32(s.limit),
-			Reason:       "redis_unavailable_fail_open",
-		}, nil
-	}
+	// Success — check actual CB state
+	state, _, _ := s.redisLimiter.GetCircuitState()
+	metrics.CircuitBreakerState.Set(float64(state))
 
 	// Record allow/deny decision
 	decision := "allowed"
@@ -86,7 +88,8 @@ func (s *Server) GetStats(ctx context.Context, req *pb.GetStatsRequest) (*pb.Get
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
 
-	_, count, err := s.redisLimiter.Allow(ctx, req.Key)
+	redisKey := fmt.Sprintf("rl:%s", req.Key)
+	count, err := s.redisLimiter.GetCount(ctx, redisKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "redis error: %v", err)
 	}
